@@ -39,6 +39,7 @@ class Word(BaseModel):
 class Paragraph(BaseModel):
     words: List[Word]
 
+@app.post("/api/analyze", response_model=List[Paragraph])
 @app.post("/analyze", response_model=List[Paragraph])
 async def analyze_text(request: TextRequest):
     try:
@@ -71,6 +72,7 @@ async def analyze_text(request: TextRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/tts")
 @app.get("/tts")
 async def get_tts(text: str, voice: str = "zh-CN-XiaoxiaoNeural", rate: str = "+0%"):
     try:
