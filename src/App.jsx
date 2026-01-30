@@ -78,66 +78,87 @@ function App() {
     const textToSpeak = wordsToSpeak.map(w => w.hanzi).join('');
 
     setStatus(`正在播放第 ${paraIdx + 1} 段...`);
-
     const rate = speed > 1.0
       ? `+${Math.round((speed - 1) * 50)}%`
       : `-${Math.round((1 - speed) * 50)}%`;
 
     // Use Server-Side TTS (MP3)
-    const ttsUrl = `/api/tts?text=${encodeURIComponent(textToSpeak)}&voice=${selectedVoice}&rate=${rate}&t=${Date.now()}`;
+    // Fetch blob first to handle errors
+    try {
+      const ttsUrl = `/api/tts?text=${encodeURIComponent(textToSpeak)}&voice=${selectedVoice}&rate=${rate}&t=${Date.now()}`;
 
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
+      setStatus("正在下載語音...");
+      const response = await fetch(ttsUrl);
 
-    const audio = new Audio(ttsUrl);
-    audioRef.current = audio;
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("TTS API Error:", errText);
+        throw new Error(`TTS Failed: ${response.status} ${response.statusText}`);
+      }
 
-    audio.onloadedmetadata = () => {
-      const duration = audio.duration;
-      const timePerWord = duration / wordsToSpeak.length;
+      const blob = await response.blob();
+      if (blob.size < 100) { // Arbitrary small size check for potential empty/error blobs
+        throw new Error("Audio file too small (possible error)");
+      }
 
-      audio.play();
+      const audioUrl = URL.createObjectURL(blob);
 
-      // Start highlighting logic
-      let currentIdx = wordIdx;
-
-      const highlightNextWord = () => {
-        if (!isPlaying || isPaused) return;
-
-        setCurrentWordIndex(currentIdx);
-
-        if (currentIdx < paragraph.words.length - 1) {
-          currentIdx++;
-          playbackTimerRef.current = setTimeout(highlightNextWord, timePerWord * 1000);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        // Clean up previous object URL if it exists
+        if (audioRef.current.src && audioRef.current.src.startsWith('blob:')) {
+          URL.revokeObjectURL(audioRef.current.src);
         }
+      }
+
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+
+      audio.onloadedmetadata = () => {
+        const duration = audio.duration;
+        const timePerWord = duration / wordsToSpeak.length;
+
+        audio.play();
+        setStatus(`正在播放第 ${paraIdx + 1} 段...`);
+
+        // Start highlighting logic
+        let currentIdx = wordIdx;
+
+        const highlightNextWord = () => {
+          if (!isPlaying || isPaused) return;
+
+          setCurrentWordIndex(currentIdx);
+
+          if (currentIdx < paragraph.words.length - 1) {
+            currentIdx++;
+            playbackTimerRef.current = setTimeout(highlightNextWord, timePerWord * 1000);
+          }
+        };
+
+        highlightNextWord();
       };
 
-      highlightNextWord();
-    };
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl); // Cleanup
+        // Small pause between paragraphs
+        setTimeout(() => {
+          playFromParagraph(paraIdx + 1);
+        }, 500);
+      };
 
-    audio.onended = () => {
-      // Small pause between paragraphs
-      setTimeout(() => {
-        playFromParagraph(paraIdx + 1);
-      }, 500);
-    };
+      audio.onerror = (e) => {
+        console.error("Audio playback error:", e);
+        setStatus("播放錯誤");
+        alert("Audio Playback Failed. The file might be corrupt.");
+        stopPlayback();
+      };
 
-    audio.onerror = (e) => {
-      console.error("Audio playback error:", e);
-      // Try to determine cause
-      const err = audio.error;
-      let errMsg = "播放出錯";
-      if (err) {
-        if (err.code === 1) errMsg = "播放被終止";
-        if (err.code === 2) errMsg = "網絡錯誤：無法載入音訊";
-        if (err.code === 3) errMsg = "解碼錯誤：音訊損壞";
-        if (err.code === 4) errMsg = "不支援的音訊格式";
-      }
-      setStatus(errMsg);
-      alert(`Audio Error: ${errMsg}. Please try again later.`);
+    } catch (e) {
+      console.error(e);
+      setStatus("語音生成失敗");
+      alert(e.message);
       stopPlayback();
-    };
+    }
   };
 
   const togglePause = () => {
@@ -165,7 +186,7 @@ function App() {
       <div className="left-panel">
         <div className="header">
           <h1>📖 Yuèdú Pro 中文閱讀器</h1>
-          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v2.2</span></p>
+          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v2.3</span></p>
         </div>
 
         <div className="reading-area">
