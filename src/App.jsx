@@ -302,6 +302,25 @@ function App() {
           • 點擊字詞可從該處開始播放<br />
           • 播放中請先停止再切換位置
         </div>
+
+        {/* Debug Info for iPhone troubleshooting */}
+        <div style={{ marginTop: '20px', padding: '10px', background: '#f1f5f9', borderRadius: '8px', fontSize: '10px', color: '#64748b', overflow: 'hidden' }}>
+          <details>
+            <summary>🔧 調試信息 (iPhone Debug)</summary>
+            <div style={{ marginTop: '5px' }}>
+              <p>User Agent: {navigator.userAgent}</p>
+              <p>Selected Index: {selectedVoiceIndex}</p>
+              <p>Voices Found: {availableVoices.length}</p>
+              <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #e2e8f0' }}>
+                {availableVoices.map((v, i) => (
+                  <div key={i} style={{ padding: '2px', borderBottom: '1px solid #eee', background: i === selectedVoiceIndex ? '#bfdbfe' : 'transparent' }}>
+                    {i}: {v.name} ({v.lang}) {v.localService ? '[Local]' : '[Network]'}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </details>
+        </div>
       </div>
     </div>
   )
