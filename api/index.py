@@ -97,7 +97,11 @@ async def get_tts(text: str, voice: str = "zh-CN-XiaoxiaoNeural", rate: str = "+
             }
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_msg = f"{str(e)}\n{traceback.format_exc()}"
+        print(f"TTS Error: {error_msg}") # Logs to Vercel console
+        # Return 400 so frontend can read the error text
+        return Response(content=f"Error generating audio: {str(e)}", status_code=400)
 
 if __name__ == "__main__":
     import uvicorn
