@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse, Response
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 import jieba
 from pypinyin import pinyin, Style
@@ -9,8 +9,6 @@ import asyncio
 import tempfile
 import os
 import uuid
-import sys
-import io
 from typing import List, Optional
 
 # Configure Jieba to use /tmp for caching (required for Vercel)
@@ -21,7 +19,7 @@ else:
 
 app = FastAPI()
 
-# Enable CORS
+# Enable CORS for development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -78,51 +76,24 @@ async def analyze_text(request: TextRequest):
 @app.get("/tts")
 async def get_tts(text: str, voice: str = "zh-CN-XiaoxiaoNeural", rate: str = "+0%"):
     try:
-        if not text:
-            return Response(content="Error: No text provided", status_code=400)
-
-        # Import and patch asyncio to allow nested loops (Critical for Vercel/FastAPI)
-        import nest_asyncio
-        nest_asyncio.apply()
-        
-        # Buffer to store audio
-        buff = io.BytesIO()
-        
-        # Use simple Communicate object
         communicate = edge_tts.Communicate(text, voice, rate=rate)
         
-        # Iterate over stream
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                buff.write(chunk["data"])
-                
-        audio_data = buff.getvalue()
+        async def audio_generator():
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    yield chunk["data"]
         
-        if len(audio_data) == 0:
-             return Response(content="Error: Generated audio is empty", status_code=500)
-
-        return Response(
-            content=audio_data,
+        return StreamingResponse(
+            audio_generator(), 
             media_type="audio/mpeg",
             headers={
+                "Accept-Ranges": "bytes",
                 "Content-Disposition": "inline",
                 "Cache-Control": "no-cache"
             }
         )
-
     except Exception as e:
-        import traceback
-        # Capture full traceback
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-        
-        print(f"CRITICAL TTS ERROR: {tb_str}")
-        
-        # Returns 400 with detailed error so frontend can read and display it
-        return Response(
-            content=f"Error: {str(e)}\n\nDetails:\n{tb_str}", 
-            status_code=400
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

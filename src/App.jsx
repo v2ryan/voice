@@ -1,14 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Play, Pause, Square, FileText, Settings, Volume2, FastForward } from 'lucide-react'
 
-const VOICES = {
-  "女聲 (曉曉) - 自然": "zh-CN-XiaoxiaoNeural",
-  "男聲 (雲希) - 自然": "zh-CN-YunxiNeural",
-  "女聲 (曉伊) - 富表現力": "zh-CN-XiaoyiNeural",
-  "男聲 (雲健) - 溫暖": "zh-CN-YunjianNeural",
-  "女聲 (曉夢) - 活潑": "zh-CN-XiaomengNeural",
-};
-
 function App() {
   const [text, setText] = useState("見證就是神的話在人身上作工達到的果效。\n\n神的話語是生命的糧食，能滋養我們的靈魂。\n\n信心是所望之事的實底，是未見之事的確據。");
   const [paragraphs, setParagraphs] = useState([]);
@@ -17,12 +9,49 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [speed, setSpeed] = useState(1.0);
-  const [selectedVoice, setSelectedVoice] = useState("zh-CN-XiaoxiaoNeural");
+  const [availableVoices, setAvailableVoices] = useState([]);
+  const [selectedVoiceIndex, setSelectedVoiceIndex] = useState(0);
   const [status, setStatus] = useState("就緒");
 
   const audioRef = useRef(null);
   const abortControllerRef = useRef(null);
   const playbackTimerRef = useRef(null);
+
+  // Load available Chinese voices from browser
+  useEffect(() => {
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      // Filter for Chinese/Mandarin voices, prioritize Mandarin over Cantonese
+      const chineseVoices = voices.filter(v =>
+        v.lang.includes('zh') || v.lang.includes('cmn') || v.lang.includes('CN')
+      ).sort((a, b) => {
+        // Prioritize Mandarin (zh-CN, cmn) over Cantonese (zh-HK, yue)
+        const aIsMandarin = a.lang.includes('CN') || a.lang.includes('TW') || a.lang.includes('cmn');
+        const bIsMandarin = b.lang.includes('CN') || b.lang.includes('TW') || b.lang.includes('cmn');
+        const aIsCantonese = a.lang.includes('HK') || a.lang.includes('yue') || a.name.toLowerCase().includes('cantonese');
+        const bIsCantonese = b.lang.includes('HK') || b.lang.includes('yue') || b.name.toLowerCase().includes('cantonese');
+
+        if (aIsMandarin && !bIsMandarin) return -1;
+        if (!aIsMandarin && bIsMandarin) return 1;
+        if (aIsCantonese && !bIsCantonese) return 1;
+        if (!aIsCantonese && bIsCantonese) return -1;
+        return 0;
+      });
+
+      if (chineseVoices.length > 0) {
+        setAvailableVoices(chineseVoices);
+        setSelectedVoiceIndex(0);
+      }
+    };
+
+    // Load voices (may need to wait for them to be available)
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, []);
 
   const analyzeText = async () => {
     try {
@@ -59,6 +88,10 @@ function App() {
     if (playbackTimerRef.current) {
       clearTimeout(playbackTimerRef.current);
     }
+    // Stop Web Speech API
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     setStatus("已停止");
   };
 
@@ -78,85 +111,57 @@ function App() {
     const textToSpeak = wordsToSpeak.map(w => w.hanzi).join('');
 
     setStatus(`正在播放第 ${paraIdx + 1} 段...`);
-    const rate = speed > 1.0
-      ? `+${Math.round((speed - 1) * 50)}%`
-      : `-${Math.round((1 - speed) * 50)}%`;
 
-    // Use Server-Side TTS (MP3)
-    // Fetch blob first to handle errors
-    try {
-      const ttsUrl = `/api/tts?text=${encodeURIComponent(textToSpeak)}&voice=${selectedVoice}&rate=${rate}&t=${Date.now()}`;
+    // Use Web Speech API (works reliably in browser)
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); // Stop any previous speech
 
-      setStatus("正在下載語音...");
-      const response = await fetch(ttsUrl);
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error("TTS API Error:", errText);
-        throw new Error(`TTS Failed: ${response.status} ${response.statusText}`);
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      // Use the user-selected voice
+      if (availableVoices.length > 0 && availableVoices[selectedVoiceIndex]) {
+        const voice = availableVoices[selectedVoiceIndex];
+        utterance.voice = voice;
+        utterance.lang = voice.lang; // CRITICAL: Force language to match voice
+        console.log('Using voice:', voice.name, voice.lang);
+      } else {
+        // Fallback if no voice selected
+        utterance.lang = 'zh-CN';
       }
 
-      const blob = await response.blob();
-      if (blob.size < 100) { // Arbitrary small size check for potential empty/error blobs
-        throw new Error("Audio file too small (possible error)");
-      }
+      // Estimate duration and time per word
+      const estimatedDuration = textToSpeak.length * 0.3 / speed; // ~0.3s per character
+      const timePerWord = (estimatedDuration / wordsToSpeak.length) * 1000;
 
-      const audioUrl = URL.createObjectURL(blob);
+      // Start highlighting
+      let currentIdx = wordIdx;
+      setCurrentWordIndex(currentIdx);
 
-      if (audioRef.current) {
-        audioRef.current.pause();
-        // Clean up previous object URL if it exists
-        if (audioRef.current.src && audioRef.current.src.startsWith('blob:')) {
-          URL.revokeObjectURL(audioRef.current.src);
-        }
-      }
-
-      const audio = new Audio(audioUrl);
-      audioRef.current = audio;
-
-      audio.onloadedmetadata = () => {
-        const duration = audio.duration;
-        const timePerWord = duration / wordsToSpeak.length;
-
-        audio.play();
-        setStatus(`正在播放第 ${paraIdx + 1} 段...`);
-
-        // Start highlighting logic
-        let currentIdx = wordIdx;
-
-        const highlightNextWord = () => {
-          if (!isPlaying || isPaused) return;
-
+      const highlightInterval = setInterval(() => {
+        if (currentIdx < paragraph.words.length - 1) {
+          currentIdx++;
           setCurrentWordIndex(currentIdx);
+        }
+      }, timePerWord);
 
-          if (currentIdx < paragraph.words.length - 1) {
-            currentIdx++;
-            playbackTimerRef.current = setTimeout(highlightNextWord, timePerWord * 1000);
-          }
-        };
-
-        highlightNextWord();
-      };
-
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl); // Cleanup
-        // Small pause between paragraphs
+      utterance.onend = () => {
+        clearInterval(highlightInterval);
+        setCurrentWordIndex(-1);
+        // Move to next paragraph
         setTimeout(() => {
           playFromParagraph(paraIdx + 1);
         }, 500);
       };
 
-      audio.onerror = (e) => {
-        console.error("Audio playback error:", e);
-        setStatus("播放錯誤");
-        alert("Audio Playback Failed. The file might be corrupt.");
+      utterance.onerror = (e) => {
+        console.error("Speech error", e);
+        clearInterval(highlightInterval);
+        setStatus("播放出錯");
         stopPlayback();
       };
 
-    } catch (e) {
-      console.error(e);
-      setStatus("語音生成失敗");
-      alert(e.message);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setStatus("瀏覽器不支援語音合成");
       stopPlayback();
     }
   };
@@ -166,12 +171,11 @@ function App() {
 
     if (isPaused) {
       setIsPaused(false);
-      audioRef.current?.play();
+      window.speechSynthesis.resume();
       setStatus("繼續播放");
     } else {
       setIsPaused(true);
-      audioRef.current?.pause();
-      if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
+      window.speechSynthesis.pause();
       setStatus("已暫停");
     }
   };
@@ -186,7 +190,7 @@ function App() {
       <div className="left-panel">
         <div className="header">
           <h1>📖 Yuèdú Pro 中文閱讀器</h1>
-          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v2.7</span></p>
+          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v1.5</span></p>
         </div>
 
         <div className="reading-area">
@@ -228,11 +232,20 @@ function App() {
         </div>
 
         <div className="control-group">
-          <label className="control-label">語音設定</label>
-          <select value={selectedVoice} onChange={(e) => setSelectedVoice(e.target.value)}>
-            {Object.entries(VOICES).map(([name, code]) => (
-              <option key={code} value={code}>{name}</option>
-            ))}
+          <label className="control-label">語音設定 ({availableVoices.length} 個可用)</label>
+          <select
+            value={selectedVoiceIndex}
+            onChange={(e) => setSelectedVoiceIndex(parseInt(e.target.value))}
+          >
+            {availableVoices.length === 0 ? (
+              <option value={0}>載入中...</option>
+            ) : (
+              availableVoices.map((voice, idx) => (
+                <option key={idx} value={idx}>
+                  {voice.name} ({voice.lang})
+                </option>
+              ))
+            )}
           </select>
         </div>
 
@@ -289,7 +302,6 @@ function App() {
           • 點擊字詞可從該處開始播放<br />
           • 播放中請先停止再切換位置
         </div>
-
       </div>
     </div>
   )
