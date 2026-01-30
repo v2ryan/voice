@@ -11,6 +11,12 @@ import os
 import uuid
 from typing import List, Optional
 
+# Configure Jieba to use /tmp for caching (required for Vercel)
+if os.environ.get('VERCEL'):
+    jieba.dt.tmp_dir = '/tmp'
+else:
+    jieba.dt.tmp_dir = tempfile.gettempdir()
+
 app = FastAPI()
 
 # Enable CORS for development

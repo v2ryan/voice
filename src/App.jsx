@@ -33,8 +33,14 @@ function App() {
         body: JSON.stringify({ text }),
       });
       const data = await response.json();
-      setParagraphs(data);
-      setStatus(`已載入 ${data.length} 個段落`);
+      if (Array.isArray(data)) {
+        setParagraphs(data);
+        setStatus(`已載入 ${data.length} 個段落`);
+      } else {
+        console.error("API Error:", data);
+        setStatus("載入失敗：伺服器錯誤");
+        alert("Server Error: " + JSON.stringify(data));
+      }
     } catch (error) {
       console.error(error);
       setStatus("載入失敗");
