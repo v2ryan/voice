@@ -186,7 +186,7 @@ function App() {
       <div className="left-panel">
         <div className="header">
           <h1>📖 Yuèdú Pro 中文閱讀器</h1>
-          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v2.6</span></p>
+          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v2.7</span></p>
         </div>
 
         <div className="reading-area">

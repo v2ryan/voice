@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, Response
 from pydantic import BaseModel
 import jieba
 from pypinyin import pinyin, Style
@@ -9,6 +9,8 @@ import asyncio
 import tempfile
 import os
 import uuid
+import sys
+import io
 from typing import List, Optional
 
 # Configure Jieba to use /tmp for caching (required for Vercel)
@@ -19,7 +21,7 @@ else:
 
 app = FastAPI()
 
-# Enable CORS for development
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -76,41 +78,51 @@ async def analyze_text(request: TextRequest):
 @app.get("/tts")
 async def get_tts(text: str, voice: str = "zh-CN-XiaoxiaoNeural", rate: str = "+0%"):
     try:
-        # Use subprocess to call edge-tts CLI directly
-        # This isolates the async loop and avoids Vercel environment issues
-        import subprocess
+        if not text:
+            return Response(content="Error: No text provided", status_code=400)
+
+        # Import and patch asyncio to allow nested loops (Critical for Vercel/FastAPI)
+        import nest_asyncio
+        nest_asyncio.apply()
         
-        # Run as python module to ensure we find it
-        import sys
+        # Buffer to store audio
+        buff = io.BytesIO()
         
-        cmd = [
-            sys.executable, "-m", "edge_tts",
-            "--text", text,
-            "--voice", voice,
-            "--rate", rate,
-            "--write-media", "-" 
-        ]
+        # Use simple Communicate object
+        communicate = edge_tts.Communicate(text, voice, rate=rate)
         
-        # Run command and capture binary output
-        result = subprocess.run(cmd, capture_output=True, check=True)
+        # Iterate over stream
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                buff.write(chunk["data"])
+                
+        audio_data = buff.getvalue()
         
+        if len(audio_data) == 0:
+             return Response(content="Error: Generated audio is empty", status_code=500)
+
         return Response(
-            content=result.stdout,
+            content=audio_data,
             media_type="audio/mpeg",
             headers={
                 "Content-Disposition": "inline",
                 "Cache-Control": "no-cache"
             }
         )
-    except subprocess.CalledProcessError as e:
-        error_msg = f"Subprocess Error: {e.stderr.decode('utf-8') if e.stderr else str(e)}"
-        print(error_msg)
-        return Response(content=error_msg, status_code=400)
+
     except Exception as e:
         import traceback
-        error_msg = f"{str(e)}\n{traceback.format_exc()}"
-        print(f"TTS Error: {error_msg}")
-        return Response(content=f"Error generating audio: {str(e)}", status_code=400)
+        # Capture full traceback
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+        
+        print(f"CRITICAL TTS ERROR: {tb_str}")
+        
+        # Returns 400 with detailed error so frontend can read and display it
+        return Response(
+            content=f"Error: {str(e)}\n\nDetails:\n{tb_str}", 
+            status_code=400
+        )
 
 if __name__ == "__main__":
     import uvicorn

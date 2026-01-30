@@ -5,3 +5,4 @@ pypinyin
 edge-tts>=7.2.7
 aiohttp
 python-multipart
+nest_asyncio
