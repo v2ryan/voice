@@ -11,14 +11,15 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
       }
-    },
-    build: {
-      rollupOptions: {
-        output: {
-          entryFileNames: `assets/[name].[hash].${Date.now()}.js`,
-          chunkFileNames: `assets/[name].[hash].${Date.now()}.js`,
-          assetFileNames: `assets/[name].[hash].${Date.now()}.[ext]`
-        }
+    }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        entryFileNames: `assets/[name].[hash].${Date.now()}.js`,
+        chunkFileNames: `assets/[name].[hash].${Date.now()}.js`,
+        assetFileNames: `assets/[name].[hash].${Date.now()}.[ext]`
       }
     }
-  })
+  }
+})
