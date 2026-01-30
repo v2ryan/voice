@@ -59,6 +59,10 @@ function App() {
     if (playbackTimerRef.current) {
       clearTimeout(playbackTimerRef.current);
     }
+    // Stop Web Speech API
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     setStatus("已停止");
   };
 
@@ -79,54 +83,57 @@ function App() {
 
     setStatus(`正在播放第 ${paraIdx + 1} 段...`);
 
-    const rate = speed > 1.0
-      ? `+${Math.round((speed - 1) * 50)}%`
-      : `-${Math.round((1 - speed) * 50)}%`;
+    // Use Web Speech API (works reliably in browser)
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); // Stop any previous speech
 
-    const ttsUrl = `/api/tts?text=${encodeURIComponent(textToSpeak)}&voice=${selectedVoice}&rate=${rate}`;
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      utterance.lang = 'zh-CN';
+      utterance.rate = speed;
 
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
+      // Try to find a Chinese voice
+      const voices = window.speechSynthesis.getVoices();
+      const chineseVoice = voices.find(v => v.lang.includes('zh') || v.lang.includes('CN'));
+      if (chineseVoice) {
+        utterance.voice = chineseVoice;
+      }
 
-    const audio = new Audio(ttsUrl);
-    audioRef.current = audio;
+      // Estimate duration and time per word
+      const estimatedDuration = textToSpeak.length * 0.3 / speed; // ~0.3s per character
+      const timePerWord = (estimatedDuration / wordsToSpeak.length) * 1000;
 
-    audio.onloadedmetadata = () => {
-      const duration = audio.duration;
-      const timePerWord = duration / wordsToSpeak.length;
-
-      audio.play();
-
-      // Start highlighting logic
+      // Start highlighting
       let currentIdx = wordIdx;
+      setCurrentWordIndex(currentIdx);
 
-      const highlightNextWord = () => {
-        if (!isPlaying || isPaused) return;
-
-        setCurrentWordIndex(currentIdx);
-
+      const highlightInterval = setInterval(() => {
         if (currentIdx < paragraph.words.length - 1) {
           currentIdx++;
-          playbackTimerRef.current = setTimeout(highlightNextWord, timePerWord * 1000);
+          setCurrentWordIndex(currentIdx);
         }
+      }, timePerWord);
+
+      utterance.onend = () => {
+        clearInterval(highlightInterval);
+        setCurrentWordIndex(-1);
+        // Move to next paragraph
+        setTimeout(() => {
+          playFromParagraph(paraIdx + 1);
+        }, 500);
       };
 
-      highlightNextWord();
-    };
+      utterance.onerror = (e) => {
+        console.error("Speech error", e);
+        clearInterval(highlightInterval);
+        setStatus("播放出錯");
+        stopPlayback();
+      };
 
-    audio.onended = () => {
-      // Small pause between paragraphs
-      setTimeout(() => {
-        playFromParagraph(paraIdx + 1);
-      }, 500);
-    };
-
-    audio.onerror = (e) => {
-      console.error("Audio error", e);
-      setStatus("播放出錯");
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setStatus("瀏覽器不支援語音合成");
       stopPlayback();
-    };
+    }
   };
 
   const togglePause = () => {
@@ -134,14 +141,11 @@ function App() {
 
     if (isPaused) {
       setIsPaused(false);
-      audioRef.current?.play();
-      // Resume timer logic would be complex, simplified for now:
-      // In a real app we'd track precise elapsed time.
+      window.speechSynthesis.resume();
       setStatus("繼續播放");
     } else {
       setIsPaused(true);
-      audioRef.current?.pause();
-      if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
+      window.speechSynthesis.pause();
       setStatus("已暫停");
     }
   };
@@ -156,7 +160,7 @@ function App() {
       <div className="left-panel">
         <div className="header">
           <h1>📖 Yuèdú Pro 中文閱讀器</h1>
-          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v1.1</span></p>
+          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v1.2</span></p>
         </div>
 
         <div className="reading-area">
