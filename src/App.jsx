@@ -91,11 +91,48 @@ function App() {
       utterance.lang = 'zh-CN';
       utterance.rate = speed;
 
-      // Try to find a Chinese voice
+      // Get available voices and find Mandarin (not Cantonese)
       const voices = window.speechSynthesis.getVoices();
-      const chineseVoice = voices.find(v => v.lang.includes('zh') || v.lang.includes('CN'));
-      if (chineseVoice) {
-        utterance.voice = chineseVoice;
+
+      // Priority order for Mandarin voices:
+      // 1. Explicitly Mandarin (zh-CN, cmn)
+      // 2. Taiwan Mandarin (zh-TW) 
+      // 3. Generic Chinese but NOT Cantonese (avoid zh-HK, yue)
+      const findMandarinVoice = () => {
+        // First try: Mainland Mandarin
+        let voice = voices.find(v =>
+          v.lang === 'zh-CN' ||
+          v.lang === 'cmn-CN' ||
+          v.lang === 'cmn-Hans-CN' ||
+          (v.name.toLowerCase().includes('mandarin') && !v.name.toLowerCase().includes('cantonese'))
+        );
+        if (voice) return voice;
+
+        // Second try: Taiwan Mandarin
+        voice = voices.find(v =>
+          v.lang === 'zh-TW' ||
+          v.lang === 'cmn-TW' ||
+          v.lang === 'cmn-Hant-TW'
+        );
+        if (voice) return voice;
+
+        // Third try: Any Chinese that's NOT Cantonese
+        voice = voices.find(v =>
+          (v.lang.startsWith('zh') || v.lang.startsWith('cmn')) &&
+          !v.lang.includes('HK') &&
+          !v.lang.includes('yue') &&
+          !v.name.toLowerCase().includes('cantonese')
+        );
+        if (voice) return voice;
+
+        // Last resort: any Chinese voice
+        return voices.find(v => v.lang.includes('zh') || v.lang.includes('CN'));
+      };
+
+      const mandarinVoice = findMandarinVoice();
+      if (mandarinVoice) {
+        utterance.voice = mandarinVoice;
+        console.log('Using voice:', mandarinVoice.name, mandarinVoice.lang);
       }
 
       // Estimate duration and time per word
@@ -160,7 +197,7 @@ function App() {
       <div className="left-panel">
         <div className="header">
           <h1>📖 Yuèdú Pro 中文閱讀器</h1>
-          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v1.2</span></p>
+          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v1.3</span></p>
         </div>
 
         <div className="reading-area">

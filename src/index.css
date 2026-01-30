@@ -230,11 +230,117 @@ input[type="range"] {
 }
 
 @keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .word-card.speaking {
   animation: pulse 1s infinite;
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    padding: 10px;
+    gap: 15px;
+  }
+
+  .left-panel {
+    order: 2;
+    flex: none;
+    padding: 16px;
+    min-height: 300px;
+    max-height: 50vh;
+  }
+
+  .right-panel {
+    order: 1;
+    flex: none;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .header {
+    margin-bottom: 10px;
+  }
+
+  .header h1 {
+    font-size: 18px;
+  }
+
+  .header p {
+    font-size: 12px !important;
+  }
+
+  textarea {
+    height: 80px;
+    font-size: 14px;
+  }
+
+  .hanzi {
+    font-size: 22px;
+  }
+
+  .pinyin {
+    font-size: 12px;
+  }
+
+  .word-card {
+    padding: 6px 10px;
+  }
+
+  .paragraph {
+    gap: 6px;
+    margin-bottom: 20px;
+    padding: 5px;
+  }
+
+  button {
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+
+  .control-label {
+    font-size: 13px;
+  }
+
+  select {
+    padding: 8px;
+    font-size: 14px;
+  }
+
+  .stats {
+    font-size: 11px;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 400px) {
+  .header h1 {
+    font-size: 16px;
+  }
+
+  .hanzi {
+    font-size: 20px;
+  }
+
+  .pinyin {
+    font-size: 11px;
+  }
+
+  textarea {
+    height: 60px;
+  }
 }
