@@ -39,7 +39,14 @@ function App() {
       });
 
       if (chineseVoices.length > 0) {
-        setAvailableVoices(chineseVoices);
+        // Add a "System Default" option which might work better on some devices
+        const systemDefault = {
+          name: "系統預設 (System Default)",
+          lang: "zh-CN",
+          localService: true,
+          default: true
+        };
+        setAvailableVoices([systemDefault, ...chineseVoices]);
         setSelectedVoiceIndex(0);
       }
     };
@@ -120,9 +127,17 @@ function App() {
       // Use the user-selected voice
       if (availableVoices.length > 0 && availableVoices[selectedVoiceIndex]) {
         const voice = availableVoices[selectedVoiceIndex];
-        utterance.voice = voice;
-        utterance.lang = voice.lang; // CRITICAL: Force language to match voice
-        console.log('Using voice:', voice.name, voice.lang);
+
+        // Special handling for our synthetic "System Default" voice
+        if (voice.name.includes("System Default")) {
+          utterance.lang = 'zh-CN'; // Just force Mandarin, let browser pick voice
+          // Do NOT set utterance.voice
+          console.log('Using System Default zh-CN');
+        } else {
+          utterance.voice = voice;
+          utterance.lang = voice.lang; // CRITICAL: Force language to match voice
+          console.log('Using voice:', voice.name, voice.lang);
+        }
       } else {
         // Fallback if no voice selected
         utterance.lang = 'zh-CN';
@@ -190,7 +205,7 @@ function App() {
       <div className="left-panel">
         <div className="header">
           <h1>📖 Yuèdú Pro 中文閱讀器</h1>
-          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v1.5</span></p>
+          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v1.8</span></p>
         </div>
 
         <div className="reading-area">
