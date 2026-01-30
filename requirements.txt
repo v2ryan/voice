@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+jieba
+pypinyin
+edge-tts>=7.2.7
+aiohttp
+python-multipart
