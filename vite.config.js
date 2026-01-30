@@ -11,8 +11,8 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
       }
-    }
-  build: {
+    },
+    build: {
       rollupOptions: {
         output: {
           entryFileNames: `assets/[name].[hash].${Date.now()}.js`,
