@@ -80,10 +80,11 @@ async def get_tts(text: str, voice: str = "zh-CN-XiaoxiaoNeural", rate: str = "+
         # This isolates the async loop and avoids Vercel environment issues
         import subprocess
         
-        # Build command: edge-tts --text "Hello" --voice zh-CN-XiaoxiaoNeural --rate=+0% --write-media -
-        # The '-' tells it to write binary to stdout
+        # Run as python module to ensure we find it
+        import sys
+        
         cmd = [
-            "edge-tts",
+            sys.executable, "-m", "edge_tts",
             "--text", text,
             "--voice", voice,
             "--rate", rate,
