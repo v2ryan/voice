@@ -76,31 +76,39 @@ async def analyze_text(request: TextRequest):
 @app.get("/tts")
 async def get_tts(text: str, voice: str = "zh-CN-XiaoxiaoNeural", rate: str = "+0%"):
     try:
-        # Buffer audio in memory to avoid disk issues on Vercel
-        import io
-        from fastapi.responses import Response
+        # Use subprocess to call edge-tts CLI directly
+        # This isolates the async loop and avoids Vercel environment issues
+        import subprocess
         
-        buff = io.BytesIO()
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                buff.write(chunk["data"])
+        # Build command: edge-tts --text "Hello" --voice zh-CN-XiaoxiaoNeural --rate=+0% --write-media -
+        # The '-' tells it to write binary to stdout
+        cmd = [
+            "edge-tts",
+            "--text", text,
+            "--voice", voice,
+            "--rate", rate,
+            "--write-media", "-" 
+        ]
         
-        # Get the full binary content
-        audio_data = buff.getvalue()
+        # Run command and capture binary output
+        result = subprocess.run(cmd, capture_output=True, check=True)
         
         return Response(
-            content=audio_data,
+            content=result.stdout,
             media_type="audio/mpeg",
             headers={
                 "Content-Disposition": "inline",
                 "Cache-Control": "no-cache"
             }
         )
+    except subprocess.CalledProcessError as e:
+        error_msg = f"Subprocess Error: {e.stderr.decode('utf-8') if e.stderr else str(e)}"
+        print(error_msg)
+        return Response(content=error_msg, status_code=400)
     except Exception as e:
         import traceback
         error_msg = f"{str(e)}\n{traceback.format_exc()}"
-        print(f"TTS Error: {error_msg}") # Logs to Vercel console
-        # Return 400 so frontend can read the error text
+        print(f"TTS Error: {error_msg}")
         return Response(content=f"Error generating audio: {str(e)}", status_code=400)
 
 if __name__ == "__main__":
