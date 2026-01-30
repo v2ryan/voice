@@ -76,20 +76,21 @@ async def analyze_text(request: TextRequest):
 @app.get("/tts")
 async def get_tts(text: str, voice: str = "zh-CN-XiaoxiaoNeural", rate: str = "+0%"):
     try:
-        communicate = edge_tts.Communicate(text, voice, rate=rate)
+        # Create a temporary file
+        temp_dir = '/tmp' if os.environ.get('VERCEL') else tempfile.gettempdir()
+        temp_filename = f"{uuid.uuid4()}.mp3"
+        temp_filepath = os.path.join(temp_dir, temp_filename)
         
-        async def audio_generator():
-            async for chunk in communicate.stream():
-                if chunk["type"] == "audio":
-                    yield chunk["data"]
+        # Generate audio
+        await communicate.save(temp_filepath)
         
-        return StreamingResponse(
-            audio_generator(), 
+        # Return the file
+        return FileResponse(
+            temp_filepath, 
             media_type="audio/mpeg",
             headers={
-                "Accept-Ranges": "bytes",
-                "Content-Disposition": "inline",
-                "Cache-Control": "no-cache"
+                "Cache-Control": "no-cache",
+                "Content-Disposition": "inline"
             }
         )
     except Exception as e:
