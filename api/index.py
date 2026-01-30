@@ -76,21 +76,24 @@ async def analyze_text(request: TextRequest):
 @app.get("/tts")
 async def get_tts(text: str, voice: str = "zh-CN-XiaoxiaoNeural", rate: str = "+0%"):
     try:
-        # Create a temporary file
-        temp_dir = '/tmp' if os.environ.get('VERCEL') else tempfile.gettempdir()
-        temp_filename = f"{uuid.uuid4()}.mp3"
-        temp_filepath = os.path.join(temp_dir, temp_filename)
+        # Buffer audio in memory to avoid disk issues on Vercel
+        import io
+        from fastapi.responses import Response
         
-        # Generate audio
-        await communicate.save(temp_filepath)
+        buff = io.BytesIO()
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                buff.write(chunk["data"])
         
-        # Return the file
-        return FileResponse(
-            temp_filepath, 
+        # Get the full binary content
+        audio_data = buff.getvalue()
+        
+        return Response(
+            content=audio_data,
             media_type="audio/mpeg",
             headers={
-                "Cache-Control": "no-cache",
-                "Content-Disposition": "inline"
+                "Content-Disposition": "inline",
+                "Cache-Control": "no-cache"
             }
         )
     except Exception as e:

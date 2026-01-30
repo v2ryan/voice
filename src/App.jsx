@@ -124,8 +124,18 @@ function App() {
     };
 
     audio.onerror = (e) => {
-      console.error("Audio error", e);
-      setStatus("播放出錯");
+      console.error("Audio playback error:", e);
+      // Try to determine cause
+      const err = audio.error;
+      let errMsg = "播放出錯";
+      if (err) {
+        if (err.code === 1) errMsg = "播放被終止";
+        if (err.code === 2) errMsg = "網絡錯誤：無法載入音訊";
+        if (err.code === 3) errMsg = "解碼錯誤：音訊損壞";
+        if (err.code === 4) errMsg = "不支援的音訊格式";
+      }
+      setStatus(errMsg);
+      alert(`Audio Error: ${errMsg}. Please try again later.`);
       stopPlayback();
     };
   };
@@ -155,7 +165,7 @@ function App() {
       <div className="left-panel">
         <div className="header">
           <h1>📖 Yuèdú Pro 中文閱讀器</h1>
-          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v2.0</span></p>
+          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>流暢朗讀，精準拼音 <span style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '11px' }}>v2.2</span></p>
         </div>
 
         <div className="reading-area">
